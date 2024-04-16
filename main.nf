@@ -1697,8 +1697,8 @@ genoV <- fread("${v_genotype}", data.table = FALSE)
 # add information to the genotype table
 genoV <-
   genoV %>% dplyr::group_by(gene) %>% dplyr::mutate(
-    freq_by_clone = addFreqInfo(tab_clone_v, gene, genotyped_alleles),
-    freq_by_seq = addFreqInfo(tab_freq_v, gene, genotyped_alleles)
+    Freq_by_Clone = addFreqInfo(tab_clone_v, gene, genotyped_alleles),
+    Freq_by_Seq = addFreqInfo(tab_freq_v, gene, genotyped_alleles)
   )
 
 
@@ -1713,8 +1713,8 @@ genoJ <- fread("${j_genotype}", data.table = FALSE, colClasses = "character")
 # add information to the genotype table
 genoJ <-
   genoJ %>% dplyr::group_by(gene) %>% dplyr::mutate(
-    freq_by_clone = addFreqInfo(tab_clone_j, gene, genotyped_alleles),
-    freq_by_seq = addFreqInfo(tab_freq_j, gene, genotyped_alleles)
+    Freq_by_Clone = addFreqInfo(tab_clone_j, gene, genotyped_alleles),
+    Freq_by_Seq = addFreqInfo(tab_freq_j, gene, genotyped_alleles)
   )
   
 # for the d_calls; first check if the genotype file for d exists
@@ -1734,8 +1734,8 @@ if (endsWith("${d_genotype}", ".tsv")){
 	print(genoD)
 	genoD <-
 	  genoD %>% dplyr::group_by(gene) %>% dplyr::mutate(
-	    freq_by_clone = addFreqInfo(tab_clone_d, gene, genotyped_alleles),
-	    freq_by_seq = addFreqInfo(tab_freq_d, gene, genotyped_alleles)
+	    Freq_by_Clone = addFreqInfo(tab_clone_d, gene, genotyped_alleles),
+	    Freq_by_Seq = addFreqInfo(tab_freq_d, gene, genotyped_alleles)
 	  )
 	  
 	genos <- plyr::rbind.fill(genoV, genoD, genoJ)
@@ -1743,9 +1743,13 @@ if (endsWith("${d_genotype}", ".tsv")){
 	genos <- plyr::rbind.fill(genoV, genoJ)
 }
 
-genos[["freq_by_clone"]] <- gsub("NA", "0", genos[["freq_by_clone"]])
-genos[["freq_by_seq"]] <- gsub("NA", "0", genos[["freq_by_seq"]])
+genos[["Freq_by_Clone"]] <- gsub("NA", "0", genos[["Freq_by_Clone"]])
+genos[["Freq_by_Seq"]] <- gsub("NA", "0", genos[["Freq_by_Seq"]])
 
+# rename the genotyped_allele columns
+new_genotyped_allele_name = "GENOTYPED_ALLELES"
+col_loc = which(names(genos)=='genotyped_alleles')
+names(genos)[col_loc] = new_genotyped_allele_name
 
 
 # write the report
