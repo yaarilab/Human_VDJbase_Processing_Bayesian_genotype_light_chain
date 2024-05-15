@@ -1693,7 +1693,7 @@ tab_clone_v <- getFreq(data_initial_run, call = "v_call")
 # keep just alleles that passed the genotype
 tab_clone_v <- tab_clone_v[names(tab_freq_v)]
 # read the genotype table
-genoV <- fread("${v_genotype}", data.table = FALSE)
+genoV <- fread("${v_genotype}", data.table = FALSE, colClasses = "character")
 # add information to the genotype table
 genoV <-
   genoV %>% dplyr::group_by(gene) %>% dplyr::mutate(
