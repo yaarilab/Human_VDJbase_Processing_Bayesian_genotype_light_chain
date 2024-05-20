@@ -786,8 +786,8 @@ input:
  set val(name), file(v_ref) from g_8_germlineFastaFile1_g_70
 
 output:
- set val(name), file("new_V_novel_germline*")  into g_70_germlineFastaFile0_g_83, g_70_germlineFastaFile0_g11_22, g_70_germlineFastaFile0_g11_12
- file "changes.csv" optional true  into g_70_outputFileCSV1_g_83
+ set val(name), file("new_V_novel_germline*")  into g_70_germlineFastaFile0_g_86, g_70_germlineFastaFile0_g11_22, g_70_germlineFastaFile0_g11_12
+ file "changes.csv" optional true  into g_70_outputFileCSV1_g_86
 
 
 script:
@@ -1070,7 +1070,7 @@ input:
  set val(name3), file(j_germline_file) from g_4_germlineFastaFile_g11_12
 
 output:
- set val(name_igblast),file("*_db-pass.tsv") optional true  into g11_12_outputFileTSV0_g_83
+ set val(name_igblast),file("*_db-pass.tsv") optional true  into g11_12_outputFileTSV0_g_86
  set val("reference_set"), file("${reference_set}") optional true  into g11_12_germlineFastaFile11
  set val(name_igblast),file("*_db-fail.tsv") optional true  into g11_12_outputFileTSV22
 
@@ -1128,17 +1128,16 @@ if(igblastOut.getName().endsWith(".out")){
 }
 
 
-process change_germline_file_and_repertoire_file_names_back {
+process change_light_germline_file_and_repertoire_file_names_back {
 
 input:
- file csv from g_70_outputFileCSV1_g_83
- set val(name1), file(germline_file) from g_70_germlineFastaFile0_g_83
- set val(name_igblast),file(rep_file) from g11_12_outputFileTSV0_g_83
+ file csv from g_70_outputFileCSV1_g_86
+ set val(name1), file(germline_file) from g_70_germlineFastaFile0_g_86
+ set val(name_igblast),file(rep_file) from g11_12_outputFileTSV0_g_86
 
 output:
- set val("${germline}"),file("${germline}")  into g_83_germlineFastaFile0_g_29
- set val("${rep}"), file("${rep}")  into g_83_outputFileTSV1_g_75, g_83_outputFileTSV1_g_31, g_83_outputFileTSV1_g_29, g_83_outputFileTSV1_g_76
- set val("${clone_rep}"), file("${clone_rep}") optional true  into g_83_outputFileTSV22
+ set val("${germline}"),file("${germline}")  into g_86_germlineFastaFile0_g_29
+ set val("${rep}"), file("${rep}")  into g_86_outputFileTSV1_g_29, g_86_outputFileTSV1_g_31, g_86_outputFileTSV1_g_75
 
 
 script:
@@ -1146,7 +1145,6 @@ script:
 
 germline = germline_file.toString().split(' ')[0]
 rep = rep_file.toString().split(' ')[0]
-clone_rep = clone_rep_file.toString().split(' ')[0]
 changes_csv = csv.toString().split(' ')[0]
 
 
@@ -1179,8 +1177,6 @@ if (file.exists("changes.csv")) {
     
     system(paste("sed -i 's/", new_id, "/", old_id, "/g' ${rep}", sep = ""))
     
-    system(paste("sed -i 's/", new_id, "/", old_id, "/g' ${clone_rep}", sep = ""))
-    
     system(paste("sed -i 's/", new_id, "/", old_id, "/g' ${germline}", sep = ""))
 
   }
@@ -1194,13 +1190,282 @@ if (file.exists("changes.csv")) {
 
 }
 
+//* params.heavy_chain =  "yes"  //* @checkbox
+
+
+process TIgGER_bayesian_genotype_Inference_d_call {
+
+publishDir params.outdir, mode: 'copy', saveAs: {filename -> if (filename =~ /${call}_genotype_report.tsv$/) "genotype_report/$filename"}
+input:
+ set val(name),file(airrFile) from g_86_outputFileTSV1_g_75
+ set val(name1), file(germline_file) from g_3_germlineFastaFile_g_75
+
+output:
+ set val("${call}_genotype"),file("${call}_genotype_report.tsv") optional true  into g_75_outputFileTSV0_g_76
+ set val("${call}_personal_reference"), file("${call}_personal_reference.fasta") optional true  into g_75_germlineFastaFile1_g21_16, g_75_germlineFastaFile1_g21_12
+ set val("fake"),file("fake*") optional true  into g_75_outputFileTSV22
+
+script:
+
+// general params
+call = params.TIgGER_bayesian_genotype_Inference_d_call.call
+seq = params.TIgGER_bayesian_genotype_Inference_d_call.seq
+find_unmutated = params.TIgGER_bayesian_genotype_Inference_d_call.find_unmutated
+single_assignments = params.TIgGER_bayesian_genotype_Inference_d_call.single_assignments
+germline_file = germline_file.name.startsWith('NO_FILE') ? "" : "${germline_file}"
+
+
+
+if (params.heavy_chain == "yes"){
+	"""
+	#!/usr/bin/env Rscript
+	
+	library(tigger)
+	library(data.table)
+	
+	## get genotyped alleles
+	GENOTYPED_ALLELES <- function(y) {
+	  m <- which.max(as.numeric(y[2:5]))
+	  paste0(unlist(strsplit((y[1]), ','))[1:m], collapse = ",")
+	}
+	
+	# read data
+	data <- fread("${airrFile}", data.table=FALSE)
+	find_unmutated_ <- "${find_unmutated}"=="true"
+	germline_db <- if("${germline_file}"!="") readIgFasta("${germline_file}") else NA
+	
+	# get the params based on the call column
+	
+	params <- list("v_call" = c(0.6, 0.4, 0.4, 0.35, 0.25, 0.25, 0.25, 0.25, 0.25),
+				   "d_call" = c(0.5, 0.5, 0, 0, 0, 0, 0, 0, 0),
+				   "j_call" = c(0.5, 0.5, 0, 0, 0, 0, 0, 0, 0))
+	
+	if("${single_assignments}"=="true"){
+		data <- data[!grepl(pattern = ',', data[["${call}"]]),]
+	}
+	
+	# remove rows where there are missing values in the call column
+	
+	data <- data[!is.na(data[["${call}"]]),]
+	
+	# infer the genotype using tigger
+	geno <-
+	      tigger::inferGenotypeBayesian(
+	        data,
+	        find_unmutated = find_unmutated_,
+	        germline_db = germline_db,
+	        v_call = "${call}",
+	        seq = "${seq}",
+	        priors = params[["${call}"]]
+	      )
+	
+	print(geno)
+	
+	geno[["genotyped_alleles"]] <-
+	  apply(geno[, c(2, 6:9)], 1, function(y) {
+	    GENOTYPED_ALLELES(y)
+	  })
+	
+	# write the report
+	write.table(geno, file = paste0("${call}","_genotype_report.tsv"), row.names = F, sep = "\t")
+	
+	# create the personal reference set
+	NOTGENO.IND <- !(sapply(strsplit(names(germline_db), '*', fixed = T), '[', 1) %in%  geno[["gene"]])
+	germline_db_new <- germline_db[NOTGENO.IND]
+	
+	for (i in 1:nrow(geno)) {
+	  gene <- geno[i, "gene"]
+	  alleles <- geno[i, "genotyped_alleles"]
+	  if(alleles=="") alleles <- geno[i, "alleles"]
+	  alleles <- unlist(strsplit(alleles, ','))
+	  IND <- names(germline_db) %in%  paste(gene, alleles, sep = '*')
+	  germline_db_new <- c(germline_db_new, germline_db[IND])
+	}
+	
+	# writing imgt gapped fasta reference
+	writeFasta(germline_db_new, file = paste0("${call}","_personal_reference.fasta"))
+	
+	"""
+}else{
+
+	"""
+	#!/usr/bin/env Rscript
+	
+	library(tigger)
+	library(data.table)
+	
+	## get genotyped alleles
+	GENOTYPED_ALLELES <- function(y) {
+	  m <- which.max(as.numeric(y[2:5]))
+	  paste0(unlist(strsplit((y[1]), ','))[1:m], collapse = ",")
+	}
+	
+	# read data
+	data <- fread("${airrFile}", data.table=FALSE)
+	find_unmutated_ <- "${find_unmutated}"=="true"
+	germline_db <- if("${germline_file}"!="") readIgFasta("${germline_file}") else NA
+	
+	# writing imgt gapped fasta reference
+	writeFasta(germline_db, file = paste0("${call}","_personal_reference.fasta"))
+	
+	"""
+}
+
+
+}
+
+
+process Third_Alignment_D_MakeBlastDb {
+
+input:
+ set val(db_name), file(germlineFile) from g_75_germlineFastaFile1_g21_16
+
+output:
+ file "${db_name}"  into g21_16_germlineDb0_g21_9
+
+script:
+
+if(germlineFile.getName().endsWith("fasta")){
+	"""
+	sed -e '/^>/! s/[.]//g' ${germlineFile} > tmp_germline.fasta
+	mkdir -m777 ${db_name}
+	makeblastdb -parse_seqids -dbtype nucl -in tmp_germline.fasta -out ${db_name}/${db_name}
+	"""
+}else{
+	"""
+	echo something if off
+	"""
+}
+
+}
+
+
+process TIgGER_bayesian_genotype_Inference_j_call {
+
+publishDir params.outdir, mode: 'copy', saveAs: {filename -> if (filename =~ /${call}_genotype_report.tsv$/) "genotype_report/$filename"}
+input:
+ set val(name),file(airrFile) from g_86_outputFileTSV1_g_31
+ set val(name1), file(germline_file) from g_4_germlineFastaFile_g_31
+
+output:
+ set val("${call}_genotype"),file("${call}_genotype_report.tsv")  into g_31_outputFileTSV0_g_76
+ set val("${call}_personal_reference"), file("${call}_personal_reference.fasta")  into g_31_germlineFastaFile1_g21_17, g_31_germlineFastaFile1_g21_12
+
+script:
+
+// general params
+call = params.TIgGER_bayesian_genotype_Inference_j_call.call
+seq = params.TIgGER_bayesian_genotype_Inference_j_call.seq
+find_unmutated = params.TIgGER_bayesian_genotype_Inference_j_call.find_unmutated
+single_assignments = params.TIgGER_bayesian_genotype_Inference_j_call.single_assignments
+
+germline_file = germline_file.name.startsWith('NO_FILE') ? "" : "${germline_file}"
+
+
+"""
+#!/usr/bin/env Rscript
+
+library(tigger)
+library(data.table)
+
+## get genotyped alleles
+GENOTYPED_ALLELES <- function(y) {
+  m <- which.max(as.numeric(y[2:5]))
+  paste0(unlist(strsplit((y[1]), ','))[1:m], collapse = ",")
+}
+
+# read data
+data <- fread("${airrFile}", data.table=FALSE)
+find_unmutated_ <- "${find_unmutated}"=="true"
+germline_db <- if("${germline_file}"!="") readIgFasta("${germline_file}") else NA
+
+# get the params based on the call column
+
+params <- list("v_call" = c(0.6, 0.4, 0.4, 0.35, 0.25, 0.25, 0.25, 0.25, 0.25),
+			   "d_call" = c(0.5, 0.5, 0, 0, 0, 0, 0, 0, 0),
+			   "j_call" = c(0.5, 0.5, 0, 0, 0, 0, 0, 0, 0))
+
+if("${single_assignments}"=="true"){
+	data <- data[!grepl(pattern = ',', data[["${call}"]]),]
+}
+
+# remove rows where there are missing values in the call column
+
+data <- data[!is.na(data[["${call}"]]),]
+
+# infer the genotype using tigger
+geno <-
+      tigger::inferGenotypeBayesian(
+        data,
+        find_unmutated = find_unmutated_,
+        germline_db = germline_db,
+        v_call = "${call}",
+        seq = "${seq}",
+        priors = params[["${call}"]]
+      )
+
+print(geno)
+
+geno[["genotyped_alleles"]] <-
+  apply(geno[, c(2, 6:9)], 1, function(y) {
+    GENOTYPED_ALLELES(y)
+  })
+
+# write the report
+write.table(geno, file = paste0("${call}","_genotype_report.tsv"), row.names = F, sep = "\t")
+
+# create the personal reference set
+NOTGENO.IND <- !(sapply(strsplit(names(germline_db), '*', fixed = T), '[', 1) %in%  geno[["gene"]])
+germline_db_new <- germline_db[NOTGENO.IND]
+
+for (i in 1:nrow(geno)) {
+  gene <- geno[i, "gene"]
+  alleles <- geno[i, "genotyped_alleles"]
+  if(alleles=="") alleles <- geno[i, "alleles"]
+  alleles <- unlist(strsplit(alleles, ','))
+  IND <- names(germline_db) %in%  paste(gene, alleles, sep = '*')
+  germline_db_new <- c(germline_db_new, germline_db[IND])
+}
+
+# writing imgt gapped fasta reference
+writeFasta(germline_db_new, file = paste0("${call}","_personal_reference.fasta"))
+
+"""
+
+}
+
+
+process Third_Alignment_J_MakeBlastDb {
+
+input:
+ set val(db_name), file(germlineFile) from g_31_germlineFastaFile1_g21_17
+
+output:
+ file "${db_name}"  into g21_17_germlineDb0_g21_9
+
+script:
+
+if(germlineFile.getName().endsWith("fasta")){
+	"""
+	sed -e '/^>/! s/[.]//g' ${germlineFile} > tmp_germline.fasta
+	mkdir -m777 ${db_name}
+	makeblastdb -parse_seqids -dbtype nucl -in tmp_germline.fasta -out ${db_name}/${db_name}
+	"""
+}else{
+	"""
+	echo something if off
+	"""
+}
+
+}
+
 
 process TIgGER_bayesian_genotype_Inference_v_call {
 
 publishDir params.outdir, mode: 'copy', saveAs: {filename -> if (filename =~ /${call}_genotype_report.tsv$/) "genotype_report/$filename"}
 input:
- set val(name),file(airrFile) from g_83_outputFileTSV1_g_29
- set val(name1), file(germline_file) from g_83_germlineFastaFile0_g_29
+ set val(name),file(airrFile) from g_86_outputFileTSV1_g_29
+ set val(name1), file(germline_file) from g_86_germlineFastaFile0_g_29
 
 output:
  set val("${call}_genotype"),file("${call}_genotype_report.tsv")  into g_29_outputFileTSV0_g_76
@@ -1418,275 +1683,6 @@ if(germlineFile.getName().endsWith("fasta")){
 }
 
 
-process TIgGER_bayesian_genotype_Inference_j_call {
-
-publishDir params.outdir, mode: 'copy', saveAs: {filename -> if (filename =~ /${call}_genotype_report.tsv$/) "genotype_report/$filename"}
-input:
- set val(name),file(airrFile) from g_83_outputFileTSV1_g_31
- set val(name1), file(germline_file) from g_4_germlineFastaFile_g_31
-
-output:
- set val("${call}_genotype"),file("${call}_genotype_report.tsv")  into g_31_outputFileTSV0_g_76
- set val("${call}_personal_reference"), file("${call}_personal_reference.fasta")  into g_31_germlineFastaFile1_g21_17, g_31_germlineFastaFile1_g21_12
-
-script:
-
-// general params
-call = params.TIgGER_bayesian_genotype_Inference_j_call.call
-seq = params.TIgGER_bayesian_genotype_Inference_j_call.seq
-find_unmutated = params.TIgGER_bayesian_genotype_Inference_j_call.find_unmutated
-single_assignments = params.TIgGER_bayesian_genotype_Inference_j_call.single_assignments
-
-germline_file = germline_file.name.startsWith('NO_FILE') ? "" : "${germline_file}"
-
-
-"""
-#!/usr/bin/env Rscript
-
-library(tigger)
-library(data.table)
-
-## get genotyped alleles
-GENOTYPED_ALLELES <- function(y) {
-  m <- which.max(as.numeric(y[2:5]))
-  paste0(unlist(strsplit((y[1]), ','))[1:m], collapse = ",")
-}
-
-# read data
-data <- fread("${airrFile}", data.table=FALSE)
-find_unmutated_ <- "${find_unmutated}"=="true"
-germline_db <- if("${germline_file}"!="") readIgFasta("${germline_file}") else NA
-
-# get the params based on the call column
-
-params <- list("v_call" = c(0.6, 0.4, 0.4, 0.35, 0.25, 0.25, 0.25, 0.25, 0.25),
-			   "d_call" = c(0.5, 0.5, 0, 0, 0, 0, 0, 0, 0),
-			   "j_call" = c(0.5, 0.5, 0, 0, 0, 0, 0, 0, 0))
-
-if("${single_assignments}"=="true"){
-	data <- data[!grepl(pattern = ',', data[["${call}"]]),]
-}
-
-# remove rows where there are missing values in the call column
-
-data <- data[!is.na(data[["${call}"]]),]
-
-# infer the genotype using tigger
-geno <-
-      tigger::inferGenotypeBayesian(
-        data,
-        find_unmutated = find_unmutated_,
-        germline_db = germline_db,
-        v_call = "${call}",
-        seq = "${seq}",
-        priors = params[["${call}"]]
-      )
-
-print(geno)
-
-geno[["genotyped_alleles"]] <-
-  apply(geno[, c(2, 6:9)], 1, function(y) {
-    GENOTYPED_ALLELES(y)
-  })
-
-# write the report
-write.table(geno, file = paste0("${call}","_genotype_report.tsv"), row.names = F, sep = "\t")
-
-# create the personal reference set
-NOTGENO.IND <- !(sapply(strsplit(names(germline_db), '*', fixed = T), '[', 1) %in%  geno[["gene"]])
-germline_db_new <- germline_db[NOTGENO.IND]
-
-for (i in 1:nrow(geno)) {
-  gene <- geno[i, "gene"]
-  alleles <- geno[i, "genotyped_alleles"]
-  if(alleles=="") alleles <- geno[i, "alleles"]
-  alleles <- unlist(strsplit(alleles, ','))
-  IND <- names(germline_db) %in%  paste(gene, alleles, sep = '*')
-  germline_db_new <- c(germline_db_new, germline_db[IND])
-}
-
-# writing imgt gapped fasta reference
-writeFasta(germline_db_new, file = paste0("${call}","_personal_reference.fasta"))
-
-"""
-
-}
-
-
-process Third_Alignment_J_MakeBlastDb {
-
-input:
- set val(db_name), file(germlineFile) from g_31_germlineFastaFile1_g21_17
-
-output:
- file "${db_name}"  into g21_17_germlineDb0_g21_9
-
-script:
-
-if(germlineFile.getName().endsWith("fasta")){
-	"""
-	sed -e '/^>/! s/[.]//g' ${germlineFile} > tmp_germline.fasta
-	mkdir -m777 ${db_name}
-	makeblastdb -parse_seqids -dbtype nucl -in tmp_germline.fasta -out ${db_name}/${db_name}
-	"""
-}else{
-	"""
-	echo something if off
-	"""
-}
-
-}
-
-//* params.heavy_chain =  "yes"  //* @checkbox
-
-
-process TIgGER_bayesian_genotype_Inference_d_call {
-
-publishDir params.outdir, mode: 'copy', saveAs: {filename -> if (filename =~ /${call}_genotype_report.tsv$/) "genotype_report/$filename"}
-input:
- set val(name),file(airrFile) from g_83_outputFileTSV1_g_75
- set val(name1), file(germline_file) from g_3_germlineFastaFile_g_75
-
-output:
- set val("${call}_genotype"),file("${call}_genotype_report.tsv") optional true  into g_75_outputFileTSV0_g_76
- set val("${call}_personal_reference"), file("${call}_personal_reference.fasta") optional true  into g_75_germlineFastaFile1_g21_16, g_75_germlineFastaFile1_g21_12
- set val("fake"),file("fake*") optional true  into g_75_outputFileTSV22
-
-script:
-
-// general params
-call = params.TIgGER_bayesian_genotype_Inference_d_call.call
-seq = params.TIgGER_bayesian_genotype_Inference_d_call.seq
-find_unmutated = params.TIgGER_bayesian_genotype_Inference_d_call.find_unmutated
-single_assignments = params.TIgGER_bayesian_genotype_Inference_d_call.single_assignments
-germline_file = germline_file.name.startsWith('NO_FILE') ? "" : "${germline_file}"
-
-
-
-if (params.heavy_chain == "yes"){
-	"""
-	#!/usr/bin/env Rscript
-	
-	library(tigger)
-	library(data.table)
-	
-	## get genotyped alleles
-	GENOTYPED_ALLELES <- function(y) {
-	  m <- which.max(as.numeric(y[2:5]))
-	  paste0(unlist(strsplit((y[1]), ','))[1:m], collapse = ",")
-	}
-	
-	# read data
-	data <- fread("${airrFile}", data.table=FALSE)
-	find_unmutated_ <- "${find_unmutated}"=="true"
-	germline_db <- if("${germline_file}"!="") readIgFasta("${germline_file}") else NA
-	
-	# get the params based on the call column
-	
-	params <- list("v_call" = c(0.6, 0.4, 0.4, 0.35, 0.25, 0.25, 0.25, 0.25, 0.25),
-				   "d_call" = c(0.5, 0.5, 0, 0, 0, 0, 0, 0, 0),
-				   "j_call" = c(0.5, 0.5, 0, 0, 0, 0, 0, 0, 0))
-	
-	if("${single_assignments}"=="true"){
-		data <- data[!grepl(pattern = ',', data[["${call}"]]),]
-	}
-	
-	# remove rows where there are missing values in the call column
-	
-	data <- data[!is.na(data[["${call}"]]),]
-	
-	# infer the genotype using tigger
-	geno <-
-	      tigger::inferGenotypeBayesian(
-	        data,
-	        find_unmutated = find_unmutated_,
-	        germline_db = germline_db,
-	        v_call = "${call}",
-	        seq = "${seq}",
-	        priors = params[["${call}"]]
-	      )
-	
-	print(geno)
-	
-	geno[["genotyped_alleles"]] <-
-	  apply(geno[, c(2, 6:9)], 1, function(y) {
-	    GENOTYPED_ALLELES(y)
-	  })
-	
-	# write the report
-	write.table(geno, file = paste0("${call}","_genotype_report.tsv"), row.names = F, sep = "\t")
-	
-	# create the personal reference set
-	NOTGENO.IND <- !(sapply(strsplit(names(germline_db), '*', fixed = T), '[', 1) %in%  geno[["gene"]])
-	germline_db_new <- germline_db[NOTGENO.IND]
-	
-	for (i in 1:nrow(geno)) {
-	  gene <- geno[i, "gene"]
-	  alleles <- geno[i, "genotyped_alleles"]
-	  if(alleles=="") alleles <- geno[i, "alleles"]
-	  alleles <- unlist(strsplit(alleles, ','))
-	  IND <- names(germline_db) %in%  paste(gene, alleles, sep = '*')
-	  germline_db_new <- c(germline_db_new, germline_db[IND])
-	}
-	
-	# writing imgt gapped fasta reference
-	writeFasta(germline_db_new, file = paste0("${call}","_personal_reference.fasta"))
-	
-	"""
-}else{
-
-	"""
-	#!/usr/bin/env Rscript
-	
-	library(tigger)
-	library(data.table)
-	
-	## get genotyped alleles
-	GENOTYPED_ALLELES <- function(y) {
-	  m <- which.max(as.numeric(y[2:5]))
-	  paste0(unlist(strsplit((y[1]), ','))[1:m], collapse = ",")
-	}
-	
-	# read data
-	data <- fread("${airrFile}", data.table=FALSE)
-	find_unmutated_ <- "${find_unmutated}"=="true"
-	germline_db <- if("${germline_file}"!="") readIgFasta("${germline_file}") else NA
-	
-	# writing imgt gapped fasta reference
-	writeFasta(germline_db, file = paste0("${call}","_personal_reference.fasta"))
-	
-	"""
-}
-
-
-}
-
-
-process Third_Alignment_D_MakeBlastDb {
-
-input:
- set val(db_name), file(germlineFile) from g_75_germlineFastaFile1_g21_16
-
-output:
- file "${db_name}"  into g21_16_germlineDb0_g21_9
-
-script:
-
-if(germlineFile.getName().endsWith("fasta")){
-	"""
-	sed -e '/^>/! s/[.]//g' ${germlineFile} > tmp_germline.fasta
-	mkdir -m777 ${db_name}
-	makeblastdb -parse_seqids -dbtype nucl -in tmp_germline.fasta -out ${db_name}/${db_name}
-	"""
-}else{
-	"""
-	echo something if off
-	"""
-}
-
-}
-
-
 process Third_Alignment_IgBlastn {
 
 input:
@@ -1863,63 +1859,6 @@ if (file.exists("changes.csv")) {
 
 }
 
-
-process ogrdbstats_report {
-
-publishDir params.outdir, mode: 'copy', saveAs: {filename -> if (filename =~ /.*pdf$/) "ogrdbstats_third_alignment/$filename"}
-publishDir params.outdir, mode: 'copy', saveAs: {filename -> if (filename =~ /.*csv$/) "ogrdbstats_third_alignment/$filename"}
-input:
- set val(name),file(airrFile) from g_85_outputFileTSV0_g_37
- set val(name1), file(germline_file) from g_85_germlineFastaFile1_g_37
- set val(name2), file(v_germline_file) from g_29_germlineFastaFile1_g_37
-
-output:
- file "*pdf"  into g_37_outputFilePdf00
- file "*csv"  into g_37_outputFileCSV11
-
-script:
-
-// general params
-chain = params.ogrdbstats_report.chain
-outname = airrFile.name.toString().substring(0, airrFile.name.toString().indexOf("_db-pass"))
-
-"""
-
-germline_file_path=\$(realpath ${germline_file})
-
-novel=""
-
-if grep -q "_[A-Z][0-9]" ${v_germline_file}; then
-	grep -A 6 "_[A-Z][0-9]" ${v_germline_file} > novel_sequences.fasta
-	novel=\$(realpath novel_sequences.fasta)
-	diff \$germline_file_path \$novel | grep '^<' | sed 's/^< //' > personal_germline.fasta
-	germline_file_path=\$(realpath personal_germline.fasta)
-	novel="--inf_file \$novel"
-fi
-
-IFS='\t' read -a var < ${airrFile}
-
-airrfile=${airrFile}
-
-if [[ ! "\${var[*]}" =~ "v_call_genotyped" ]]; then
-    awk -F'\t' '{col=\$5;gsub("call", "call_genotyped", col); print \$0 "\t" col}' ${airrFile} > ${outname}_genotyped.tsv
-    airrfile=${outname}_genotyped.tsv
-fi
-
-airrFile_path=\$(realpath \$airrfile)
-
-
-run_ogrdbstats \
-	\$germline_file_path \
-	"Homosapiens" \
-	\$airrFile_path \
-	${chain} \
-	\$novel 
-
-"""
-
-}
-
 g_75_outputFileTSV0_g_76= g_75_outputFileTSV0_g_76.ifEmpty([""]) 
 
 def defaultIfInexistent(varName){
@@ -1948,7 +1887,6 @@ process VDJbase_genotype_report {
 
 publishDir params.outdir, mode: 'copy', saveAs: {filename -> if (filename =~ /${outname}_genotype.tsv$/) "genotype_report/$filename"}
 input:
- set val(name1),file(initial_run) from g_83_outputFileTSV1_g_76
  set val(name2),file(personal_run) from g_85_outputFileTSV0_g_76
  set val(name3),file(v_genotype) from g_29_outputFileTSV0_g_76
  set val(name4),file(d_genotype) from g_75_outputFileTSV0_g_76
@@ -2063,6 +2001,63 @@ names(genos)[col_loc] = new_genotyped_allele_name
 # write the report
 write.table(genos, file = paste0("${outname}","_genotype.tsv"), row.names = F, sep = "\t")
 """
+}
+
+
+process ogrdbstats_report {
+
+publishDir params.outdir, mode: 'copy', saveAs: {filename -> if (filename =~ /.*pdf$/) "ogrdbstats_third_alignment/$filename"}
+publishDir params.outdir, mode: 'copy', saveAs: {filename -> if (filename =~ /.*csv$/) "ogrdbstats_third_alignment/$filename"}
+input:
+ set val(name),file(airrFile) from g_85_outputFileTSV0_g_37
+ set val(name1), file(germline_file) from g_85_germlineFastaFile1_g_37
+ set val(name2), file(v_germline_file) from g_29_germlineFastaFile1_g_37
+
+output:
+ file "*pdf"  into g_37_outputFilePdf00
+ file "*csv"  into g_37_outputFileCSV11
+
+script:
+
+// general params
+chain = params.ogrdbstats_report.chain
+outname = airrFile.name.toString().substring(0, airrFile.name.toString().indexOf("_db-pass"))
+
+"""
+
+germline_file_path=\$(realpath ${germline_file})
+
+novel=""
+
+if grep -q "_[A-Z][0-9]" ${v_germline_file}; then
+	grep -A 6 "_[A-Z][0-9]" ${v_germline_file} > novel_sequences.fasta
+	novel=\$(realpath novel_sequences.fasta)
+	diff \$germline_file_path \$novel | grep '^<' | sed 's/^< //' > personal_germline.fasta
+	germline_file_path=\$(realpath personal_germline.fasta)
+	novel="--inf_file \$novel"
+fi
+
+IFS='\t' read -a var < ${airrFile}
+
+airrfile=${airrFile}
+
+if [[ ! "\${var[*]}" =~ "v_call_genotyped" ]]; then
+    awk -F'\t' '{col=\$5;gsub("call", "call_genotyped", col); print \$0 "\t" col}' ${airrFile} > ${outname}_genotyped.tsv
+    airrfile=${outname}_genotyped.tsv
+fi
+
+airrFile_path=\$(realpath \$airrfile)
+
+
+run_ogrdbstats \
+	\$germline_file_path \
+	"Homosapiens" \
+	\$airrFile_path \
+	${chain} \
+	\$novel 
+
+"""
+
 }
 
 
