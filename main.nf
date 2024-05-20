@@ -1127,6 +1127,8 @@ if(igblastOut.getName().endsWith(".out")){
 
 }
 
+g_70_outputFileCSV1_g_86= g_70_outputFileCSV1_g_86.ifEmpty([""]) 
+
 
 process change_light_germline_file_and_repertoire_file_names_back {
 
@@ -1794,6 +1796,8 @@ if(igblastOut.getName().endsWith(".out")){
 }
 
 }
+
+g_84_outputFileCSV1_g_85= g_84_outputFileCSV1_g_85.ifEmpty([""]) 
 
 
 process change_names_back {
