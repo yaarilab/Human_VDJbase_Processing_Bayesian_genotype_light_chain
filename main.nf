@@ -1137,7 +1137,7 @@ input:
 
 output:
  set val("${germline}"),file("${germline}")  into g_86_germlineFastaFile0_g_29
- set val("${rep}"), file("${rep}")  into g_86_outputFileTSV1_g_29, g_86_outputFileTSV1_g_31, g_86_outputFileTSV1_g_75
+ set val("${rep}"), file("${rep}")  into g_86_outputFileTSV1_g_29, g_86_outputFileTSV1_g_31, g_86_outputFileTSV1_g_75, g_86_outputFileTSV1_g_76
 
 
 script:
@@ -1887,6 +1887,7 @@ process VDJbase_genotype_report {
 
 publishDir params.outdir, mode: 'copy', saveAs: {filename -> if (filename =~ /${outname}_genotype.tsv$/) "genotype_report/$filename"}
 input:
+ set val(name1),file(initial_run) from g_86_outputFileTSV1_g_76
  set val(name2),file(personal_run) from g_85_outputFileTSV0_g_76
  set val(name3),file(v_genotype) from g_29_outputFileTSV0_g_76
  set val(name4),file(d_genotype) from g_75_outputFileTSV0_g_76
