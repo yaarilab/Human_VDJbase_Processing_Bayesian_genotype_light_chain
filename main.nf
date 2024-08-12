@@ -747,6 +747,10 @@ if (class(novel) != 'try-error') {
 		
 		novel <- novel[!SNP_XXXX, ]
 		
+		# remove duplicated novel alleles
+		bool <- !duplicated(novel[['polymorphism_call']])
+		novel <- novel[bool, ]
+		
 		# save novel output
 		write.table(
 		    novel,
@@ -932,7 +936,7 @@ germline_file_path=\$(realpath ${germline_file})
 novel=""
 
 if grep -q "_[A-Z][0-9]" ${v_germline_file}; then
-	grep -A 6 "_[A-Z][0-9]" ${v_germline_file} > novel_sequences.fasta
+	awk '/^>/{f=0} \$0 ~ /_[A-Z][0-9]/ {f=1} f' ${v_germline_file} > novel_sequences.fasta
 	novel=\$(realpath novel_sequences.fasta)
 	diff \$germline_file_path \$novel | grep '^<' | sed 's/^< //' > personal_germline.fasta
 	germline_file_path=\$(realpath personal_germline.fasta)
@@ -1471,7 +1475,7 @@ input:
 
 output:
  set val("${call}_genotype"),file("${call}_genotype_report.tsv")  into g_29_outputFileTSV0_g_76
- set val("${call}_personal_reference"), file("${call}_personal_reference.fasta")  into g_29_germlineFastaFile1_g_37, g_29_germlineFastaFile1_g_84
+ set val("${call}_personal_reference"), file("${call}_personal_reference.fasta")  into g_29_germlineFastaFile1_g_37, g_29_germlineFastaFile1_g_84, g_29_germlineFastaFile1_g_87
 
 script:
 
@@ -1809,7 +1813,7 @@ input:
  set val(name2), file(rep_germline_file) from g21_12_germlineFastaFile1_g_85
 
 output:
- set val("${rep}"), file("${rep}")  into g_85_outputFileTSV0_g_76, g_85_outputFileTSV0_g_37
+ set val("${rep}"), file("${rep}")  into g_85_outputFileTSV0_g_76, g_85_outputFileTSV0_g_37, g_85_outputFileTSV0_g_87
  set val("${rep_germline}"),file("${rep_germline}")  into g_85_germlineFastaFile1_g_37
 
 
@@ -2035,7 +2039,7 @@ germline_file_path=\$(realpath ${germline_file})
 novel=""
 
 if grep -q "_[A-Z][0-9]" ${v_germline_file}; then
-	grep -A 6 "_[A-Z][0-9]" ${v_germline_file} > novel_sequences.fasta
+	awk '/^>/{f=0} \$0 ~ /_[A-Z][0-9]/ {f=1} f' ${v_germline_file} > novel_sequences.fasta
 	novel=\$(realpath novel_sequences.fasta)
 	diff \$germline_file_path \$novel | grep '^<' | sed 's/^< //' > personal_germline.fasta
 	germline_file_path=\$(realpath personal_germline.fasta)
@@ -2060,6 +2064,109 @@ run_ogrdbstats \
 	\$airrFile_path \
 	${chain} \
 	\$novel 
+
+"""
+
+}
+
+g_29_germlineFastaFile1_g_87= g_29_germlineFastaFile1_g_87.ifEmpty([""]) 
+
+
+process Haplotype_inference_light_chain {
+
+publishDir params.outdir, mode: 'copy', saveAs: {filename -> if (filename =~ /.*_haplotype.tsv$/) "haplotype/$filename"}
+publishDir params.outdir, mode: 'copy', saveAs: {filename -> if (filename =~ /.*_binomDel.tsv$/) "deletion/$filename"}
+input:
+ set val(name), file(airrFile) from g_85_outputFileTSV0_g_87
+ set val(name1),file(v_germline) from g_29_germlineFastaFile1_g_87
+
+output:
+ set val(outname), file("*_haplotype.tsv") optional true  into g_87_outputFileTSV00
+ set val(outname), file("*_binomDel.tsv") optional true  into g_87_outputFileTSV11
+
+script:
+chain = params.Haplotype_inference_light_chain.chain
+
+v_germline = v_germline.name.startsWith('NO_FILE') ? "" : "${v_germline}"
+
+d_germline = d_germline.name.startsWith('NO_FILE') ? "" : "${d_germline}"
+
+outname = airrFile.name.toString().substring(0, airrFile.name.toString().indexOf("_db-pass"))
+	
+	
+"""
+#!/usr/bin/env Rscript
+
+library(tigger)
+library(data.table)
+library(rabhit)
+library(alakazam)
+
+# read the data
+data <- fread("${airrFile}", data.table=FALSE)
+
+any_igk <- any(grepl("IGK", data))
+if(any_igk){
+	
+	# read the germline
+	v_germline_db <- if("${v_germline}"!="") readIgFasta("${v_germline}") else NA
+
+	
+	binom_del <-
+	       rabhit::deletionsByBinom(data, chain = "${chain}")
+	       
+	# write deletion report
+	
+	outfile_del = "${outname}_binomDel.tsv"
+	
+	write.table(binom_del, file = outfile_del, sep = '\t', row.names = F, quote = T)
+	
+	# haplotype inference
+	
+	outfile_haplotype = "${outname}_gene-"
+	
+	genes_haplotype <- c("IGKJ2")
+	
+	for (gene in genes_haplotype) {
+	    CALL = paste0(tolower(substr(gene, 4, 4)), "_call")
+	
+		toHap_GERM = c(v_germline_db)
+    	toHap_col = c('v_call')
+
+	    allele_fractions <-
+	      grep(gene, grep(',', data[[CALL]], invert = T, value = T), value = T)
+	
+		bool <- sum(table(allele_fractions) / length(allele_fractions) >= 0.3) == 2 && length(names(table(allele_fractions))) >= 2
+	
+	    if (bool) {
+	      names_ <- names(table(allele_fractions)[table(allele_fractions) / length(allele_fractions) >= 0.3])
+	      
+	      alleles <- paste0(sapply(names_, function(x) strsplit(x, '[*]')[[1]][2]), collapse = '_')
+	      
+	      haplo <- rabhit::createFullHaplotype(
+	        data,
+	        toHap_col = toHap_col,
+	        hapBy_col = CALL,
+	        hapBy = gene,
+	        toHap_GERM = toHap_GERM,
+	        deleted_genes = binom_del,
+	        chain = "IGH"
+	      )
+	      
+	      # paste0(gene, '-', alleles)
+	      
+	      write.table(
+	        haplo,
+	        file = paste0(outfile_haplotype, gene, '-', alleles, "_haplotype.tsv"),
+	        sep = '\t',
+	        row.names = F,
+	        quote = T
+	      )
+	
+	    }
+	}
+}
+
 
 """
 
