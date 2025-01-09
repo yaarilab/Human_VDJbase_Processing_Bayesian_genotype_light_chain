@@ -2089,7 +2089,6 @@ chain = params.Haplotype_inference_light_chain.chain
 
 v_germline = v_germline.name.startsWith('NO_FILE') ? "" : "${v_germline}"
 
-d_germline = d_germline.name.startsWith('NO_FILE') ? "" : "${d_germline}"
 
 outname = airrFile.name.toString().substring(0, airrFile.name.toString().indexOf("_db-pass"))
 	
