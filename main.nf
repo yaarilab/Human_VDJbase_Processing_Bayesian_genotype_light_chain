@@ -683,7 +683,7 @@ for (i in 1:length(gene_range)) {
 	    seq = "sequence_alignment",
 	    junction = "junction",
 	    junction_length = "junction_length",
-	    nproc = nproc,
+	    nproc = num_threads,
 	    germline_min = germline_min,
 		min_seqs = min_seqs,
 		y_intercept = y_intercept,
