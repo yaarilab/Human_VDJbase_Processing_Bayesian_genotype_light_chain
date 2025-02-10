@@ -584,7 +584,6 @@ output:
  set val("v_germline"), file("V_novel_germline.fasta") optional true  into g_90_germlineFastaFile1_g_70
 
 script:
-chain = params.Undocumented_Alleles_Light.chain
 num_threads = params.Undocumented_Alleles_Light.num_threads
 germline_min = params.Undocumented_Alleles_Light.germline_min
 min_seqs = params.Undocumented_Alleles_Light.min_seqs
