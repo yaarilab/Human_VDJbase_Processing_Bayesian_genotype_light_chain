@@ -674,7 +674,7 @@ for (i in 1:length(gene_range)) {
 	sub_ <- data[stringi::stri_detect_regex(data[["v_call"]], genes), ]
 	if (nrow(sub_) != 0) {
 	  low_range <- min(sub_[['v_germline_start']])
-	  novel_df_tmp = findNovelAlleles(
+	  novel_df_tmp = try(findNovelAlleles(
 	    data = sub_,
 	    germline_db = vgerm,
 	    pos_range = low_range:upper_range,
@@ -692,8 +692,10 @@ for (i in 1:length(gene_range)) {
 		min_frac = min_frac,
 		auto_mutrange = auto_mutrange,
 		mut_range = mut_range
-	  )
-	  novel <- bind_rows(novel, novel_df_tmp)
+	  ))
+	  if (class(novel_df) != "try-error") {
+        novel <- bind_rows(novel, novel_df_tmp)
+      }
 	}
 }
 
