@@ -693,7 +693,7 @@ for (i in 1:length(gene_range)) {
 		auto_mutrange = auto_mutrange,
 		mut_range = mut_range
 	  ))
-	  if (class(novel_df) != "try-error") {
+	  if (class(novel_df_tmp) != "try-error") {
         novel <- bind_rows(novel, novel_df_tmp)
       }
 	}
