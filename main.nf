@@ -30,18 +30,16 @@ params.First_Alignment_Collapse_AIRRseq.name_alignment = "First_Alignment"
 // Process Parameters for ogrdbstats_report_first_alignment:
 params.ogrdbstats_report_first_alignment.chain = params.chain+"V"
 
-// Process Parameters for Undocumented_Alleles:
-params.Undocumented_Alleles.chain = "IGH"
-params.Undocumented_Alleles.num_threads = params.nproc
-params.Undocumented_Alleles.germline_min = 200
-params.Undocumented_Alleles.min_seqs = 50
-params.Undocumented_Alleles.auto_mutrange = "true"
-params.Undocumented_Alleles.mut_range = "1:10"
-params.Undocumented_Alleles.pos_range = "1:318"
-params.Undocumented_Alleles.y_intercept = 0.125
-params.Undocumented_Alleles.alpha = 0.05
-params.Undocumented_Alleles.j_max = 0.15
-params.Undocumented_Alleles.min_frac = 0.75
+// Process Parameters for Undocumented_Alleles_Light:
+params.Undocumented_Alleles_Light.num_threads = params.nproc
+params.Undocumented_Alleles_Light.germline_min = 200
+params.Undocumented_Alleles_Light.min_seqs = 50
+params.Undocumented_Alleles_Light.auto_mutrange = "true"
+params.Undocumented_Alleles_Light.mut_range = "1:10"
+params.Undocumented_Alleles_Light.y_intercept = 0.125
+params.Undocumented_Alleles_Light.alpha = 0.05
+params.Undocumented_Alleles_Light.j_max = 0.15
+params.Undocumented_Alleles_Light.min_frac = 0.75
 
 
 // part 3
