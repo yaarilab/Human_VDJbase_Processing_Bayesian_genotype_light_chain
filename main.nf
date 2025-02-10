@@ -671,7 +671,7 @@ novel <- c()
 for (i in 1:length(gene_range)) {
 	upper_range <- as.numeric(names(gene_range)[i])
 	genes <- gene_range[i]
-	sub_ <- sub[stringi::stri_detect_regex(data[['v_call']], genes), ]
+	sub_ <- data[stringi::stri_detect_regex(data[["v_call"]], genes), ]
 	if (nrow(sub_) != 0) {
 	  low_range <- min(sub_[['v_germline_start']])
 	  novel_df_tmp = findNovelAlleles(
