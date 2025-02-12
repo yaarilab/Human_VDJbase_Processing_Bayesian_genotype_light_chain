@@ -667,7 +667,7 @@ mut_range = mut_range[1]:mut_range[2]
 gene_range <- tigger_uper_bound(data)
 
 
-novel <- c()
+novel <- data.frame()
 for (i in 1:length(gene_range)) {
 	upper_range <- as.numeric(names(gene_range)[i])
 	genes <- gene_range[i]
