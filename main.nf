@@ -1501,7 +1501,7 @@ input:
 
 output:
  set val("${call}_genotype"),file("${call}_genotype_report.tsv")  into g_29_outputFileTSV0_g_76
- set val("${call}_personal_reference"), file("${call}_personal_reference.fasta")  into g_29_germlineFastaFile1_g_37, g_29_germlineFastaFile1_g_84, g_29_germlineFastaFile1_g_87
+ set val("${call}_personal_reference"), file("${call}_personal_reference.fasta")  into g_29_germlineFastaFile1_g_84, g_29_germlineFastaFile1_g_87, g_29_germlineFastaFile1_g_37
 
 script:
 
@@ -1839,7 +1839,7 @@ input:
  set val(name2), file(rep_germline_file) from g21_12_germlineFastaFile1_g_85
 
 output:
- set val("${rep}"), file("${rep}")  into g_85_outputFileTSV0_g_76, g_85_outputFileTSV0_g_37, g_85_outputFileTSV0_g_87
+ set val("${rep}"), file("${rep}")  into g_85_outputFileTSV0_g_76, g_85_outputFileTSV0_g_87, g_85_outputFileTSV0_g_37
  set val("${rep_germline}"),file("${rep_germline}")  into g_85_germlineFastaFile1_g_37
 
 
@@ -2064,8 +2064,8 @@ germline_file_path=\$(realpath ${germline_file})
 
 novel=""
 
-if grep -q "_[A-Z][0-9]" ${v_germline_file}; then
-	awk '/^>/{f=0} \$0 ~ /_[A-Z][0-9]/ {f=1} f' ${v_germline_file} > novel_sequences.fasta
+if grep -q "_[A-Za-z][0-9]" ${v_germline_file}; then
+	awk '/^>/{f=0} \$0 ~ /_[A-Za-z][0-9]/ {f=1} f' ${v_germline_file} > novel_sequences.fasta
 	novel=\$(realpath novel_sequences.fasta)
 	diff \$germline_file_path \$novel | grep '^<' | sed 's/^< //' > personal_germline.fasta
 	germline_file_path=\$(realpath personal_germline.fasta)
